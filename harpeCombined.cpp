@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "MS5611.h"
+#include <SPI.h>
 #include <SD.h>   //SdFat SD;
 #include <Wire.h> //Needed for I2C to GNSS
 
@@ -28,6 +29,7 @@ float deltaAlt;
 int stage = stage_GROUND;
 float velocity;
 float lastVelocity;
+float acceleration;
 int delayval;
 
 unsigned long apogeeTime = 0;
@@ -201,10 +203,12 @@ void loop() {
 
   // start writing to microSD (currently writing to serial)
   lastAlt = curAltitude;
+  lastVelocity=velocity;
   MS5611.read();
   curAltitude = MS5611.getAltitude(MS5611.getPressure());
   deltaAlt = lastAlt - curAltitude;
-  velocity=1000*deltaAlt/delayval;
+  velocity=1000.0*deltaAlt/(1.0*delayval);
+  acceleration=1000.0*(velocity-lastVelocity)/(1.0*delayval);
 
   float altitudeAGL = curAltitude - startingAlt;
 
@@ -220,7 +224,7 @@ void loop() {
   }
 // rising
   if (stage == stage_RISING) {
-    delayval=500;
+    delayval=1000;
     // update max altitude
     if (maxAltitude < curAltitude) maxAltitude = curAltitude;
 

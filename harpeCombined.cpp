@@ -28,6 +28,9 @@ float curAltitude;
 float lastAlt;
 float deltaAlt;
 int stage = stage_GROUND;
+float velocity;
+float lastVelocity;
+int delayval;
 
 unsigned long apogeeTime = 0;
 float apogeeAlt = 0.0;
@@ -139,32 +142,30 @@ void setup()
   digitalWrite(DROGUE_PIN, LOW);
   digitalWrite(MAIN_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
-  if (!MS5611.begin())
-  {
+  // Start MS5611 and GPS
+  if (!MS5611.begin()) {
     Serial.println("MS5611 not found, check wiring!");
     while (1)
       ;
   }
-  while (myGNSS.begin() == false) // Connect to the u-blox module using Wire port
-  {
+  while (myGNSS.begin() == false) { // Connect to the u-blox module using Wire port
     Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
     delay(1000);
   }
+  // Barometer get first values
   Serial.println("MS5611 Found");
   MS5611.read();
   startingAlt = MS5611.getAltitude(MS5611.getPressure());
 
+  // Set up GPS
   myGNSS.setI2COutput(COM_TYPE_UBX); // Set the I2C port to output UBX only (turn off NMEA noise)
-
   myGNSS.setNavigationFrequency(2); // Produce two solutions per second
-
   myGNSS.setAutoPVTcallbackPtr(&printPVTdata); // Enable automatic NAV PVT messages with callback to printPVTdata
 
   // Calibrating base altitude
   float sumAlt = 0.0;
   const int samples = 20;
-  for (int i = 0; i < samples; i++)
-  {
+  for (int i = 0; i < samples; i++) {
     MS5611.read();
     sumAlt += MS5611.getAltitude(MS5611.getPressure());
     delay(50);
@@ -179,54 +180,53 @@ void setup()
   Serial.println(startingAlt);
 }
 
-void loop()
-{
+void loop() {
   // start writing to microSD (currently writing to serial)
   lastAlt = curAltitude;
   MS5611.read();
   curAltitude = MS5611.getAltitude(MS5611.getPressure());
   deltaAlt = lastAlt - curAltitude;
+  velocity=1000*deltaAlt/delayval;
 
   float altitudeAGL = curAltitude - startingAlt;
 
-  if (stage == stage_GROUND)
-  {
-
-    if (altitudeAGL - LIFTOFF_DELTA_ALT)
-    {
-      stage = stage_RISING;
-    }
-    delay(2000);
+  // Ground
+  if (stage == stage_GROUND) {
+    delayval=2000;
+    // Check whether altitude has risen above liftoff cut off (currently set to 50)
+    if (altitudeAGL - LIFTOFF_DELTA_ALT > 0) stage = stage_RISING;
+    delay(delayval);
   }
-
-  if (stage == stage_RISING)
-  {
-
-    if (maxAltitude < curAltitude)
-    {
-      maxAltitude = curAltitude;
-    }
+// rising
+  if (stage == stage_RISING) {
+    delayval=500;
+    // update max altitude
+    if (maxAltitude < curAltitude) maxAltitude = curAltitude;
 
     // check if at top or if switched to falling
     // track velocity, deltaAlt will be smaller when it gets closer to apogee and then begins to fall
     // if deltaAlt is positive, make stage now falling -- calc acceleraction - if acceleration is around g is now falling
-    if (deltaAlt > 5)
-    {
+    if (deltaAlt > 1) {
       stage = stage_APOGEE;
       apogeeTime = millis();
       apogeeAlt = curAltitude;
       maxAltitude = curAltitude;
     }
-    delay(500);
+    delay(delayval);
   }
-
-  if (stage == stage_APOGEE)
-  {
-    stage = stage_FALLING;
+  // Apogee
+  if (stage == stage_APOGEE) {
+    delayval=500;
+    // update max altitude
+    if (maxAltitude < curAltitude) maxAltitude = curAltitude;
+    // check if falling at >1m/s
+    if (velocity > 1) {
+      stage = stage_FALLING;
+    }
+    delay(delayval);
   }
-
-  if (stage == stage_FALLING)
-  {
+  // Falling
+  if (stage == stage_FALLING) {
     unsigned long timeSinceApogeeMs = millis() - apogeeTime;
     float timeSinceApogeeSec = timeSinceApogeeMs / 1000.0;
 

@@ -47,6 +47,8 @@ SFE_UBLOX_GNSS myGNSS;
 int fileWork = 0;
 
 void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct) {
+  File myFile = SD.open("test1.txt", FILE_WRITE);
+
   Serial.println();
   myFile.println();
 
@@ -145,11 +147,20 @@ void setup() {
     Serial.println("MS5611 not found, check wiring!");
     delay(1000);
   }
+  // Buzz to indicate barometer started
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(200);
+  digitalWrite(BUZZER_PIN, LOW);
+  delay(200);
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(200);
+  digitalWrite(BUZZER_PIN, LOW);
+  delay(200);
   while (myGNSS.begin() == false) { // Connect to the u-blox module using Wire port
     Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
     delay(1000);
   }
-  // BUZZ
+  // BUZZ to indicate started correctly
   digitalWrite(BUZZER_PIN, HIGH);
   delay(200);
   digitalWrite(BUZZER_PIN, LOW);
@@ -237,6 +248,7 @@ void loop() {
   }
   // Falling
   if (stage == stage_FALLING) {
+    delayval=500;
     unsigned long timeSinceApogeeMs = millis() - apogeeTime;
     float timeSinceApogeeSec = timeSinceApogeeMs / 1000.0;
 
@@ -254,6 +266,7 @@ void loop() {
     if (fabs(deltaAlt) < LANDING_DELTA_ALT && fabs(altitudeAGL) < LANDING_WINDOW) {
       stage = stage_LANDED;
     }
+    delay(delayval);
   }
   // Landed
   if (stage == stage_LANDED) {

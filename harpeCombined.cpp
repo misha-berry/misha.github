@@ -8,8 +8,6 @@
 MS5611 MS5611(0x77);
 
 // include pins
-// #define SCL 19
-// #define SDA 18
 #define DROGUE_PIN 5
 #define MAIN_PIN 6
 #define BUZZER_PIN 7
@@ -48,13 +46,14 @@ const float MAIN_ALTITUDE_AGL = 100.0;
 SFE_UBLOX_GNSS myGNSS;
 int fileWork = 0;
 
-void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct)
-{
-  File myFile = SD.open("test.txt", FILE_WRITE);
-
+void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct) {
   Serial.println();
+  myFile.println();
+
 
   Serial.print(F("Time: "));         // Print the time
+  myFile.print(F("Time: "));         // Print the time
+
   uint8_t hms = ubxDataStruct->hour; // Print the hours
   if (hms < 10)
   {
@@ -125,16 +124,14 @@ void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct)
   // fclose(fptr);
 }
 
-void setup()
-{
-
+void setup() {
+  // Begin Serial, wire and SD card
   Serial.begin(115200);
   delay(1000);
-
   Wire.begin(); // Start I2C
+  File myFile = SD.open("test1.txt", FILE_WRITE);
 
-  // myGNSS.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
-
+  // set other pins
   pinMode(DROGUE_PIN, OUTPUT);
   pinMode(MAIN_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
@@ -142,16 +139,22 @@ void setup()
   digitalWrite(DROGUE_PIN, LOW);
   digitalWrite(MAIN_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
+
   // Start MS5611 and GPS
-  if (!MS5611.begin()) {
+  while (!MS5611.begin()) {
     Serial.println("MS5611 not found, check wiring!");
-    while (1)
-      ;
+    delay(1000);
   }
   while (myGNSS.begin() == false) { // Connect to the u-blox module using Wire port
     Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
     delay(1000);
   }
+  // BUZZ
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(200);
+  digitalWrite(BUZZER_PIN, LOW);
+  delay(800);
+
   // Barometer get first values
   Serial.println("MS5611 Found");
   MS5611.read();
@@ -178,9 +181,13 @@ void setup()
 
   Serial.print("Starting altitude: ");
   Serial.println(startingAlt);
+  myFile.print("Starting altitude: ");
+  myFile.println(startingAlt);
 }
 
 void loop() {
+  File myFile = SD.open("test1.txt", FILE_WRITE);
+
   // start writing to microSD (currently writing to serial)
   lastAlt = curAltitude;
   MS5611.read();
@@ -194,7 +201,10 @@ void loop() {
   if (stage == stage_GROUND) {
     delayval=2000;
     // Check whether altitude has risen above liftoff cut off (currently set to 50)
-    if (altitudeAGL - LIFTOFF_DELTA_ALT > 0) stage = stage_RISING;
+    if (altitudeAGL - LIFTOFF_DELTA_ALT > 0) {
+      stage = stage_RISING;
+      myFile.print("Now lifting off at");
+    }
     delay(delayval);
   }
 // rising
@@ -230,31 +240,28 @@ void loop() {
     unsigned long timeSinceApogeeMs = millis() - apogeeTime;
     float timeSinceApogeeSec = timeSinceApogeeMs / 1000.0;
 
-    if (!drogueDeployed && timeSinceApogeeSec > 1.0)
-    {
+    if (!drogueDeployed && timeSinceApogeeSec > 1.0) {
       drogueDeployed = true;
       digitalWrite(DROGUE_PIN, HIGH);
     }
 
-    if (!mainDeployed && altitudeAGL < MAIN_ALTITUDE_AGL)
-    {
+    if (!mainDeployed && altitudeAGL < MAIN_ALTITUDE_AGL) {
       mainDeployed = true;
       digitalWrite(MAIN_PIN, HIGH);
     }
 
     // check if landed
-    if (fabs(deltaAlt) < LANDING_DELTA_ALT && fabs(altitudeAGL) < LANDING_WINDOW)
-    {
+    if (fabs(deltaAlt) < LANDING_DELTA_ALT && fabs(altitudeAGL) < LANDING_WINDOW) {
       stage = stage_LANDED;
     }
   }
-  if (stage == stage_LANDED)
-  {
-    digitalWrite(BUZZER_PIN, HIGH);
-    delay(200);
-    digitalWrite(BUZZER_PIN, LOW);
-    delay(800);
+  // Landed
+  if (stage == stage_LANDED) {
+    delayval=5000;
+    // digitalWrite(BUZZER_PIN, HIGH);
+    // delay(200);
+    // digitalWrite(BUZZER_PIN, LOW);
+    // delay(800);
+    delay(delayval);
   }
-
-  delay(1000);
 }

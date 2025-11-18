@@ -137,6 +137,7 @@ void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct) {
   // fprintf(fptr," Height above MSL: %f (m)", altitude*0.001);
   // fclose(fptr);
 }
+void logData() {}
 
 void setup() {
   // Begin Serial, wire and SD card
@@ -236,12 +237,12 @@ void loop() {
     // Check whether altitude has risen above liftoff cut off (currently set to 50)
     if (altitudeAGL - LIFTOFF_DELTA_ALT > 0) {
       stage = stage_RISING;
-      myFile.print("Now lifting off at");
+      myFile.print("Now lifting off!");
     }
     if (first_alt==0) first_alt=GPSaltitude;
     delay(delayval);
   }
-// rising
+  // Rising
   if (stage == stage_RISING) {
     delayval=1000;
     // update max altitude

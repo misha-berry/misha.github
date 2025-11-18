@@ -13,12 +13,14 @@ MS5611 MS5611(0x77);
 #define MAIN_PIN 6
 #define BUZZER_PIN 7
 
+// STAGING
 #define stage_GROUND 1
 #define stage_RISING 2
 #define stage_APOGEE 3
 #define stage_FALLING 4
 #define stage_LANDED 5
 
+// BAROMETER GLOBAL VARS
 float curPressure = 0.0;
 float BasePressure = 0.0;
 float startingAlt = 0.0;
@@ -47,6 +49,14 @@ const float MAIN_ALTITUDE_AGL = 100.0;
 
 SFE_UBLOX_GNSS myGNSS;
 int fileWork = 0;
+
+// GPS & buzzer stuff
+long lastTime = 0; //Tracks the passing of 2000ms (2 seconds)
+const byte buzzer = 7;
+long first_alt = 0;
+byte fix_type;
+byte number = 0;
+
 
 void printPVTdata(UBX_NAV_PVT_data_t *ubxDataStruct) {
   File myFile = SD.open("test1.txt", FILE_WRITE);
@@ -162,11 +172,15 @@ void setup() {
     Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
     delay(1000);
   }
-  // BUZZ to indicate started correctly
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(200);
-  digitalWrite(BUZZER_PIN, LOW);
-  delay(800);
+  // buzzer tone to indicate GPS connected
+  tone(buzzer, 1000, 3000);    // Sounds buzzer for 3 seconds if GPS is connected
+  Serial.println("GPS connected");
+  delay(4500);
+  fix_type = myGNSS.getFixType();
+  if (fix_type > 3){
+    tone(buzzer, 1000, 2000);               //checks if GPS has lock on satellites
+    Serial.println("Lock on satellites");
+  }
 
   // Barometer get first values
   Serial.println("MS5611 Found");
@@ -211,6 +225,10 @@ void loop() {
   acceleration=1000.0*(velocity-lastVelocity)/(1.0*delayval);
 
   float altitudeAGL = curAltitude - startingAlt;
+  // GPS
+  myGNSS.checkUblox(); // Check for the arrival of new data and process it.
+  myGNSS.checkCallbacks(); // Check if any callbacks are waiting to be processed.
+  long GPSaltitude = myGNSS.getAltitudeMSL();
 
   // Ground
   if (stage == stage_GROUND) {
@@ -220,6 +238,7 @@ void loop() {
       stage = stage_RISING;
       myFile.print("Now lifting off at");
     }
+    if (first_alt==0) first_alt=GPSaltitude;
     delay(delayval);
   }
 // rising
